@@ -49,11 +49,11 @@ jobs:
 
     - name: Build native dependencies
       run: |
-        chmod +x ./libs/JHiGHS/scripts/build-native.sh
-        ./libs/JHiGHS/scripts/build-native.sh
+        chmod +x ./lib/JHiGHS/scripts/build-native.sh
+        ./lib/JHiGHS/scripts/build-native.sh
 
     - name: Build and install JHiGHS
-      working-directory: libs/JHiGHS
+      working-directory: lib/JHiGHS
       run: |
         mvn clean package
         mvn install:install-file \
@@ -65,7 +65,7 @@ jobs:
           -DgeneratePom=true
 
     - name: Build and install Orchestrate
-      working-directory: libs/Orchestrate
+      working-directory: lib/Orchestrate
       run: |
         mvn clean package
         mvn install:install-file \
@@ -80,14 +80,14 @@ jobs:
       run: mkdir -p maven-repo
 
     - name: Deploy JHiGHS to local repository
-      working-directory: libs/JHiGHS
+      working-directory: lib/JHiGHS
       run: |
         mvn deploy \
           -DaltDeploymentRepository=local::default::file://$(pwd)/../../maven-repo \
           -DskipTests
 
     - name: Deploy Orchestrate to local repository
-      working-directory: libs/Orchestrate
+      working-directory: lib/Orchestrate
       run: |
         mvn deploy \
           -DaltDeploymentRepository=local::default::file://$(pwd)/../../maven-repo \
