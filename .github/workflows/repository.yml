@@ -55,6 +55,7 @@ jobs:
     - name: Build and install JHiGHS
       working-directory: lib/JHiGHS
       run: |
+        ls -la
         mvn clean package
         mvn install:install-file \
           -Dfile=target/jhighs-${{ steps.get_version.outputs.VERSION }}.jar \
