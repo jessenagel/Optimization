@@ -1,5 +1,4 @@
 name: Deploy Maven Artifacts from Submodules
-
 on:
   repository_dispatch:
     types: [submodule-release]
@@ -13,16 +12,13 @@ on:
         description: 'Version to deploy'
         required: true
         type: string
-
 permissions:
   contents: write
   pages: write
   id-token: write
-
 concurrency:
   group: "pages"
   cancel-in-progress: false
-
 jobs:
   update-and-deploy:
     runs-on: ubuntu-latest
@@ -33,20 +29,17 @@ jobs:
       with:
         submodules: recursive
         fetch-depth: 0
-
     - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
         java-version: '21'
         distribution: 'temurin'
-
     - name: Cache Maven dependencies
       uses: actions/cache@v4
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
-
     - name: Get version from input or payload
       id: get_version
       run: |
@@ -57,7 +50,6 @@ jobs:
           echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           echo "SUBMODULE=${{ github.event.inputs.submodule }}" >> $GITHUB_OUTPUT
         fi
-
     - name: Update specific submodule to latest release
       if: steps.get_version.outputs.SUBMODULE != ''
       run: |
@@ -69,7 +61,6 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git commit -m "Update ${{ steps.get_version.outputs.SUBMODULE }} to v${{ steps.get_version.outputs.VERSION }}" || true
-
     - name: Update all submodules to latest releases
       if: steps.get_version.outputs.SUBMODULE == ''
       run: |
@@ -94,14 +85,11 @@ jobs:
         
         git add -A
         git commit -m "Update submodules to latest releases" || true
-
     - name: Push submodule updates
       run: |
         git push origin main || true
-
     - name: Create Maven repository structure
       run: mkdir -p maven-repo
-
     - name: Build and install JHiGHS locally (if exists)
       if: hashFiles('lib/JHiGHS/pom.xml') != ''
       run: |
@@ -113,33 +101,47 @@ jobs:
           ./scripts/build-native.sh
         fi
         
-        # Set version if provided
-        if [ -n "${{ steps.get_version.outputs.VERSION }}" ]; then
-          mvn versions:set -DnewVersion=${{ steps.get_version.outputs.VERSION }}
-          mvn versions:commit
+        # Get the actual version from the current tag/commit
+        ACTUAL_VERSION=""
+        if [ -n "${{ steps.get_version.outputs.SUBMODULE }}" ] && [ "${{ steps.get_version.outputs.SUBMODULE }}" = "JHiGHS" ]; then
+          # This is the updated submodule, use the specified version
+          ACTUAL_VERSION="${{ steps.get_version.outputs.VERSION }}"
+        else
+          # Get version from current git tag
+          ACTUAL_VERSION=$(git describe --tags --exact-match 2>/dev/null | sed 's/^v//' || git describe --tags 2>/dev/null | sed 's/^v//' || echo "1.0.0-SNAPSHOT")
         fi
+        
+        echo "Setting JHiGHS version to: $ACTUAL_VERSION"
+        mvn versions:set -DnewVersion=$ACTUAL_VERSION
+        mvn versions:commit
         
         # Build and install to local repository first (for other dependencies)
         mvn clean install -DskipTests
         
-        echo "✅ JHiGHS built and installed locally"
-
+        echo "✅ JHiGHS built and installed locally with version $ACTUAL_VERSION"
     - name: Build and install Orchestrate locally (if exists)
       if: hashFiles('lib/Orchestrate/pom.xml') != ''
       run: |
         cd lib/Orchestrate
         
-        # Set version if provided
-        if [ -n "${{ steps.get_version.outputs.VERSION }}" ]; then
-          mvn versions:set -DnewVersion=${{ steps.get_version.outputs.VERSION }}
-          mvn versions:commit
+        # Get the actual version from the current tag/commit
+        ACTUAL_VERSION=""
+        if [ -n "${{ steps.get_version.outputs.SUBMODULE }}" ] && [ "${{ steps.get_version.outputs.SUBMODULE }}" = "Orchestrate" ]; then
+          # This is the updated submodule, use the specified version
+          ACTUAL_VERSION="${{ steps.get_version.outputs.VERSION }}"
+        else
+          # Get version from current git tag
+          ACTUAL_VERSION=$(git describe --tags --exact-match 2>/dev/null | sed 's/^v//' || git describe --tags 2>/dev/null | sed 's/^v//' || echo "1.0.0-SNAPSHOT")
         fi
+        
+        echo "Setting Orchestrate version to: $ACTUAL_VERSION"
+        mvn versions:set -DnewVersion=$ACTUAL_VERSION
+        mvn versions:commit
         
         # Build and install (JHiGHS should already be in local repo)
         mvn clean install -DskipTests
         
-        echo "✅ Orchestrate built and installed locally"
-
+        echo "✅ Orchestrate built and installed locally with version $ACTUAL_VERSION"
     - name: Build and install other Maven projects locally
       run: |
         # Find all other pom.xml files in lib subdirectories (excluding JHiGHS and Orchestrate)
@@ -149,19 +151,26 @@ jobs:
           echo "Building project: $project_name in $dir"
           cd "$dir"
           
-          # Set version if provided
-          if [ -n "${{ steps.get_version.outputs.VERSION }}" ]; then
-            mvn versions:set -DnewVersion=${{ steps.get_version.outputs.VERSION }}
-            mvn versions:commit
+          # Get the actual version from the current tag/commit
+          ACTUAL_VERSION=""
+          if [ -n "${{ steps.get_version.outputs.SUBMODULE }}" ] && [ "${{ steps.get_version.outputs.SUBMODULE }}" = "$project_name" ]; then
+            # This is the updated submodule, use the specified version
+            ACTUAL_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          else
+            # Get version from current git tag
+            ACTUAL_VERSION=$(git describe --tags --exact-match 2>/dev/null | sed 's/^v//' || git describe --tags 2>/dev/null | sed 's/^v//' || echo "1.0.0-SNAPSHOT")
           fi
+          
+          echo "Setting $project_name version to: $ACTUAL_VERSION"
+          mvn versions:set -DnewVersion=$ACTUAL_VERSION
+          mvn versions:commit
           
           # Build and install locally
           mvn clean install -DskipTests
           
-          echo "✅ $project_name built and installed locally"
+          echo "✅ $project_name built and installed locally with version $ACTUAL_VERSION"
           cd - > /dev/null
         done
-
     - name: Deploy all projects to Maven repository
       run: |
         echo "🚀 Deploying all projects to Maven repository..."
@@ -200,7 +209,6 @@ jobs:
           echo "✅ $project_name deployed to Maven repository"
           cd - > /dev/null
         done
-
     - name: Generate repository index
       run: |
         # Create a comprehensive index.html
@@ -255,10 +263,8 @@ jobs:
             &lt;/repository&gt;
         &lt;/repositories&gt;</code></pre>
                 </div>
-
                 <h2>📚 Available Artifacts</h2>
         EOF
-
         # Dynamically find all deployed artifacts
         find maven-repo -name "*.pom" | while read pom; do
           if [[ "$pom" != *"maven-metadata"* ]]; then
@@ -299,7 +305,6 @@ jobs:
         EOF
           fi
         done
-
         cat >> maven-repo/index.html << 'EOF'
                 <h2>🚀 Latest Deployment</h2>
                 <ul>
@@ -307,19 +312,16 @@ jobs:
                     <li><strong>Trigger:</strong> ${{ github.event_name }}</li>
                     <li><strong>Repository:</strong> <a href="https://github.com/${{ github.repository }}">${{ github.repository }}</a></li>
                 </ul>
-
                 <h2>🔗 Submodules</h2>
                 <p>This repository automatically builds and deploys artifacts from the following submodules:</p>
                 <ul>
         EOF
-
         # List all submodules
         if [ -f .gitmodules ]; then
           grep "path = " .gitmodules | sed 's/.*path = //' | while read submodule; do
             echo "                    <li><code>$submodule</code></li>" >> maven-repo/index.html
           done
         fi
-
         cat >> maven-repo/index.html << 'EOF'
                 </ul>
                 
@@ -333,19 +335,15 @@ jobs:
         </body>
         </html>
         EOF
-
     - name: Setup Pages
       uses: actions/configure-pages@v4
-
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
         path: './maven-repo'
-
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
-
     - name: Create deployment summary
       run: |
         echo "## 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
