@@ -1,0 +1,9 @@
+[submodule "lib/Orchestrate"]
+	path = lib/Orchestrate
+	url = git@github.com:jessenagel/Orchestrate.git
+[submodule "lib/JHiGHS"]
+	path = lib/JHiGHS
+	url = git@github.com:jessenagel/JHiGHS.git
+[submodule "lib/CEMTRouting"]
+	path = lib/CEMTRouting
+	url = git@github.com:jessenagel/CEMTRouting.git
