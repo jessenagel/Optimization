@@ -223,11 +223,13 @@ jobs:
                     background: #fafafa; 
                 }
                 .artifact h3 { margin-top: 0; color: #2980b9; }
-                code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-family: 'Monaco', 'Consolas', monospace; }
+                code { background: #f8f9fa; padding: 2px 6px; border-radius: 4px; font-family: 'Monaco', 'Consolas', monospace; color: #495057; border: 1px solid #e9ecef; }
                 pre { 
-                    background: #2c3e50; color: #ecf0f1; padding: 15px; 
+                    background: #f8f9fa; color: #495057; padding: 15px; 
                     border-radius: 6px; overflow-x: auto; 
                     font-family: 'Monaco', 'Consolas', monospace;
+                    border: 1px solid #e9ecef;
+                    line-height: 1.4;
                 }
                 .version-badge { 
                     background: #27ae60; color: white; 
