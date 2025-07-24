@@ -102,7 +102,7 @@ jobs:
     - name: Create Maven repository structure
       run: mkdir -p maven-repo
 
-    - name: Build and deploy JHiGHS (if exists)
+    - name: Build and install JHiGHS locally (if exists)
       if: hashFiles('lib/JHiGHS/pom.xml') != ''
       run: |
         cd lib/JHiGHS
@@ -119,13 +119,12 @@ jobs:
           mvn versions:commit
         fi
         
-        # Build and deploy
-        mvn clean package -DskipTests
-        mvn deploy \
-          -DaltDeploymentRepository=local::default::file://$(pwd)/../../maven-repo \
-          -DskipTests
+        # Build and install to local repository first (for other dependencies)
+        mvn clean install -DskipTests
+        
+        echo "✅ JHiGHS built and installed locally"
 
-    - name: Build and deploy Orchestrate (if exists)
+    - name: Build and install Orchestrate locally (if exists)
       if: hashFiles('lib/Orchestrate/pom.xml') != ''
       run: |
         cd lib/Orchestrate
@@ -136,18 +135,18 @@ jobs:
           mvn versions:commit
         fi
         
-        # Build and deploy
-        mvn clean package -DskipTests
-        mvn deploy \
-          -DaltDeploymentRepository=local::default::file://$(pwd)/../../maven-repo \
-          -DskipTests
+        # Build and install (JHiGHS should already be in local repo)
+        mvn clean install -DskipTests
+        
+        echo "✅ Orchestrate built and installed locally"
 
-    - name: Build and deploy other Maven projects
+    - name: Build and install other Maven projects locally
       run: |
-        # Find all other pom.xml files in lib subdirectories
+        # Find all other pom.xml files in lib subdirectories (excluding JHiGHS and Orchestrate)
         find lib -name "pom.xml" -not -path "lib/JHiGHS/*" -not -path "lib/Orchestrate/*" | while read pom; do
           dir=$(dirname "$pom")
-          echo "Building project in $dir"
+          project_name=$(basename "$dir")
+          echo "Building project: $project_name in $dir"
           cd "$dir"
           
           # Set version if provided
@@ -156,12 +155,49 @@ jobs:
             mvn versions:commit
           fi
           
-          # Build and deploy
-          mvn clean package -DskipTests
+          # Build and install locally
+          mvn clean install -DskipTests
+          
+          echo "✅ $project_name built and installed locally"
+          cd - > /dev/null
+        done
+
+    - name: Deploy all projects to Maven repository
+      run: |
+        echo "🚀 Deploying all projects to Maven repository..."
+        
+        # Deploy JHiGHS
+        if [ -f "lib/JHiGHS/pom.xml" ]; then
+          cd lib/JHiGHS
+          mvn deploy \
+            -DaltDeploymentRepository=local::default::file://$(pwd)/../../maven-repo \
+            -DskipTests
+          echo "✅ JHiGHS deployed to Maven repository"
+          cd - > /dev/null
+        fi
+        
+        # Deploy Orchestrate
+        if [ -f "lib/Orchestrate/pom.xml" ]; then
+          cd lib/Orchestrate
+          mvn deploy \
+            -DaltDeploymentRepository=local::default::file://$(pwd)/../../maven-repo \
+            -DskipTests
+          echo "✅ Orchestrate deployed to Maven repository"
+          cd - > /dev/null
+        fi
+        
+        # Deploy other projects
+        find lib -name "pom.xml" -not -path "lib/JHiGHS/*" -not -path "lib/Orchestrate/*" | while read pom; do
+          dir=$(dirname "$pom")
+          project_name=$(basename "$dir")
+          echo "Deploying $project_name..."
+          cd "$dir"
+          
           mvn deploy \
             -DaltDeploymentRepository=local::default::file://$(pwd)/../../maven-repo \
             -DskipTests
           
+          echo "✅ $project_name deployed to Maven repository"
           cd - > /dev/null
         done
 
